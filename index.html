@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Area</title>
+
+    <script>
+        window.onerror = function(message, source, lineno) {
+            alert("Crash Report:\n" + message + "\nLine: " + lineno);
+            return true;
+        };
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
+        header { background-color: #1a252f; color: white; padding: 15px 20px; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        #secret-logo { cursor: pointer; user-select: none; margin: 0; font-size: 24px; font-weight: bold; padding: 10px;}
+        
+        .container { max-width: 900px; margin: 20px auto; padding: 0 15px; flex: 1; width: 100%; box-sizing: border-box; }
+        .panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        #admin-panel { display: none; border-top: 5px solid #e74c3c; }
+        
+        input[type="text"], input[type="email"], select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        .btn-main { background-color: #27ae60; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; border-radius: 6px; font-weight: bold; margin-bottom: 10px; font-size: 16px; transition: 0.3s;}
+        .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 16px;}
+        
+        .image-preview-box { border: 2px dashed #ccc; padding: 15px; text-align: center; margin: 10px 0; border-radius: 6px; color: #7f8c8d; font-weight: bold; }
+        .premium-box { background: #fff3e0; border-left: 4px solid #f39c12; padding: 15px; margin: 10px 0; border-radius: 5px;}
+        .premium-list-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 8px; margin: 5px 0; border-radius: 4px; border: 1px solid #f39c12;}
+        
+        .filter-container { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 10px; }
+        .filter-btn { background-color: white; border: 1px solid #bdc3c7; padding: 8px 18px; border-radius: 20px; cursor: pointer; font-weight: bold; color: #7f8c8d; white-space: nowrap; transition: 0.3s; }
+        .filter-btn.active { background-color: #3498db; color: white; border-color: #3498db; }
+
+        #posts-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; }
+        .post-card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1); position: relative; }
+        .book-thumbnail { width: 100%; height: 300px; object-fit: cover; cursor: pointer; }
+        .book-info { padding: 15px; }
+        .book-info h3 { margin: 0 0 10px 0; color: #2c3e50; font-size: 18px; line-height: 1.3; }
+        
+        .book-meta { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold; }
+        .badge-cat { color: #7f8c8d; background: #ecf0f1; padding: 4px 8px; border-radius: 5px;}
+        .badge-downloaded { color: #27ae60; background: #eafaf1; padding: 4px 8px; border-radius: 5px; }
+        .badge-premium { background: #f1c40f; color: #000; font-size: 12px; padding: 5px 10px; border-radius: 4px; font-weight: bold; position: absolute; top: 10px; right: 10px; z-index: 2; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        
+        .overlay-actions { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 300px; background: rgba(0, 0, 0, 0.85); flex-direction: column; justify-content: center; align-items: center; gap: 12px; z-index: 3;}
+        .overlay-actions button { padding: 12px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 85%; font-size: 16px; transition: 0.2s;}
+        .btn-download { background-color: #e67e22; color: white; }
+        .btn-download:hover { background-color: #d35400; }
+        .btn-premium { background-color: #f39c12; color: white; }
+        
+        footer { background-color: #1a252f; color: #bdc3c7; text-align: center; padding: 15px 0; margin-top: 40px; font-size: 14px; box-shadow: 0 -2px 5px rgba(0,0,0,0.1);}
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2 id="secret-logo" onclick="secretTrigger()">📚 Book Area</h2>
+    </header>
+
+    <div class="container">
+        <div id="admin-panel" class="panel">
+            <h3 style="margin-top:0; color:#e74c3c;">👑 Boss Dashboard</h3>
+            
+            <div class="premium-box">
+                <h4 style="margin-top:0;">Manage Premium Users</h4>
+                <div style="display:flex; gap:10px;">
+                    <input type="email" id="add-premium-email" placeholder="Enter User's Gmail ID" style="margin:0;">
+                    <button onclick="makeUserPremium()" style="background:#27ae60; color:white; border:none; padding:10px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Add</button>
+                </div>
+                <div id="premium-list-container" style="margin-top: 15px; max-height: 150px; overflow-y: auto;">
+                    </div>
+            </div>
+
+            <hr style="border:0; border-top:1px solid #ddd; margin:20px 0;">
+
+            <h4 style="margin-top:0;">Publish New Book</h4>
+            <div class="image-preview-box">
+                <label for="book-image" style="cursor: pointer;">📸 Click to Add Book Cover Photo</label>
+                <input type="file" id="book-image" accept="image/*" style="display:none;" onchange="previewImage(event)">
+                <br><img id="img-preview" src="" style="max-height: 150px; display: none; margin-top: 10px; border-radius: 5px;">
+            </div>
+
+            <input type="text" id="post-title" placeholder="Book Title (e.g., The Wind-Cap)">
+            
+            <div style="margin: 15px 0; background:#f9f9f9; padding:10px; border-radius:5px; border:1px solid #eee;">
+                <strong>Category: </strong>
+                <select id="post-category" style="width: auto; margin-right: 15px; padding: 5px;">
+                    <option value="All">All</option>
+                    <option value="Adventure">Adventure</option>
+                    <option value="Horror">Horror</option>
+                    <option value="Sci-fi">Sci-fi</option>
+                    <option value="Others" selected>Others</option>
+                </select>
+                <label style="color:#e67e22; font-weight:bold; cursor:pointer;">
+                    <input type="checkbox" id="post-premium" style="width:auto; transform:scale(1.2);"> 👑 Premium Only
+                </label>
+            </div>
+
+            <input type="text" id="post-link" placeholder="Direct File Link (Google Drive / Mediafire URL)">
+
+            <button onclick="addPost()" class="btn-main">Publish Book To World</button>
+            <button onclick="logoutAdmin()" class="btn-secondary" style="background:#e74c3c;">Close & Logout</button>
+        </div>
+
+        <h2 style="color: #2c3e50; margin-bottom: 15px;">Explore Books</h2>
+        <div class="filter-container" id="filter-buttons">
+            <button class="filter-btn active" onclick="filterBooks('All')">All</button>
+            <button class="filter-btn" onclick="filterBooks('Adventure')">Adventure</button>
+            <button class="filter-btn" onclick="filterBooks('Horror')">Horror</button>
+            <button class="filter-btn" onclick="filterBooks('Sci-fi')">Sci-fi</button>
+            <button class="filter-btn" onclick="filterBooks('Others')">Others</button>
+        </div>
+
+        <p id="loading-text" style="text-align:center; color:#7f8c8d; font-weight:bold; padding:20px;">Fetching Latest Books...</p>
+        <div id="posts-container"></div>
+    </div>
+
+    <footer>Copyright &copy; 2026 Book Area. All Rights Reserved.</footer>
+
+    <script>
+        // --- SAFE LOCAL STORAGE WRAPPERS ---
+        function safeSetLocal(key, value) { try { localStorage.setItem(key, value); } catch(e) {} }
+        function safeGetLocal(key) { try { return localStorage.getItem(key); } catch(e) { return null; } }
+        function safeRemoveLocal(key) { try { localStorage.removeItem(key); } catch(e) {} }
+
+        // --- FIREBASE SETUP ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBM91JZs-0aCglY4NeHs9sCpn4qR045d6U",
+            authDomain: "book-area-fbc5f.firebaseapp.com",
+            databaseURL: "https://book-area-fbc5f-default-rtdb.firebaseio.com", 
+            projectId: "book-area-fbc5f",
+            messagingSenderId: "1048688815681",
+            appId: "1:1048688815681:web:b3d2c44fbcf1b8aafa60c0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // --- GLOBAL VARIABLES ---
+        const OWNER_EMAIL = "bookareaadmin@gmail.com"; 
+        let clickCount = 0;
+        let base64Image = ""; 
+        let allLivePosts = []; 
+        let isAdminLoggedIn = false;
+
+        // --- ADMIN LOGIC ---
+        function checkAdminSession() {
+            if(safeGetLocal("isBoss") === "yes") {
+                isAdminLoggedIn = true;
+                document.getElementById("admin-panel").style.display = "block";
+                fetchPremiumUsers();
+            }
+        }
+
+        function secretTrigger() {
+            clickCount++;
+            if(clickCount === 10) {
+                let email = prompt("Secret Admin Access\nEnter Boss Email:");
+                if (email === OWNER_EMAIL) {
+                    safeSetLocal("isBoss", "yes"); 
+                    isAdminLoggedIn = true;
+                    document.getElementById("admin-panel").style.display = "block";
+                    fetchPremiumUsers();
+                    renderPosts(document.querySelector('.filter-btn.active').innerText); 
+                } else { alert("Access Denied!"); }
+                clickCount = 0; 
+            }
+            setTimeout(function() { clickCount = 0; }, 4000); 
+        }
+
+        function logoutAdmin() { 
+            safeRemoveLocal("isBoss"); 
+            isAdminLoggedIn = false;
+            document.getElementById("admin-panel").style.display = "none"; 
+            renderPosts(document.querySelector('.filter-btn.active').innerText); 
+        }
+
+        function makeUserPremium() {
+            let targetEmail = document.getElementById("add-premium-email").value.trim().toLowerCase();
+            if(!targetEmail) return alert("Enter an email first!");
+            let safeEmail = targetEmail.replace(/\./g, ',');
+            database.ref("premiumUsers/" + safeEmail).set(true).then(function() {
+                alert(targetEmail + " is now a Premium Member!");
+                document.getElementById("add-premium-email").value = "";
+            });
+        }
+
+        function fetchPremiumUsers() {
+            database.ref("premiumUsers").on("value", function(snapshot) {
+                let container = document.getElementById("premium-list-container");
+                container.innerHTML = "";
+                if(!snapshot.exists()) {
+                    container.innerHTML = "<p style='font-size:13px;'>No premium users yet.</p>";
+                    return;
+                }
+                snapshot.forEach(function(child) {
+                    let safeEmail = child.key;
+                    let realEmail = safeEmail.replace(/,/g, '.');
+                    container.innerHTML += `
+                        <div class="premium-list-item">
+                            <span>📧 ${realEmail}</span>
+                            <button onclick="removePremiumUser('${safeEmail}')" style="background:#e74c3c; color:white; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;">Remove</button>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        function removePremiumUser(safeEmail) {
+            if(confirm("Are you sure you want to remove this user from Premium?")) {
+                database.ref("premiumUsers/" + safeEmail).remove();
+            }
+        }
+
+        function previewImage(event) {
+            let file = event.target.files[0];
+            if(!file) return;
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                base64Image = e.target.result;
+                let preview = document.getElementById("img-preview");
+                preview.src = base64Image;
+                preview.style.display = "inline-block";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function addPost() {
+            let title = document.getElementById("post-title").value;
+            let link = document.getElementById("post-link").value;
+            let cat = document.getElementById("post-category").value;
+            let isPremium = document.getElementById("post-premium").checked;
+
+            if (!title || !base64Image || !link) return alert("Title, Photo, and Link are required!");
+
+            let newPost = { title: title, image: base64Image, link: link, category: cat, isPremium: isPremium, timestamp: Date.now() };
+
+            database.ref("books").push(newPost).then(function() {
+                alert("Boom! Book is now Live!");
+                document.getElementById("post-title").value = "";
+                document.getElementById("post-link").value = "";
+                document.getElementById("img-preview").style.display = "none";
+                base64Image = "";
+                document.getElementById("post-premium").checked = false;
+            }).catch(function(err) { alert("Error saving book: " + err); });
+        }
+
+        function deletePost(id) {
+            if(confirm("Are you sure you want to permanently delete this book from the website?")) {
+                database.ref("books/" + id).remove()
+                .then(function() { alert("Book deleted successfully!"); })
+                .catch(function(err) { alert("Error deleting book: " + err); });
+            }
+        }
+
+        // --- VISITOR & DATA LOGIC ---
+        function fetchLivePosts() {
+            database.ref("books").orderByChild("timestamp").on("value", function(snapshot) {
+                document.getElementById("loading-text").style.display = "none";
+                allLivePosts = []; 
+                snapshot.forEach(function(childSnapshot) {
+                    let postData = childSnapshot.val();
+                    postData.id = childSnapshot.key; 
+                    allLivePosts.push(postData);
+                });
+                allLivePosts.reverse(); 
+                let currentCat = document.querySelector('.filter-btn.active');
+                renderPosts(currentCat ? currentCat.innerText : 'All'); 
+            }, function(error) {
+                document.getElementById("loading-text").innerHTML = "Error loading books.";
+                alert("Database Error: " + error.message);
+            });
+        }
+
+        function filterBooks(category) {
+            let buttons = document.querySelectorAll('.filter-btn');
+            for(let i=0; i<buttons.length; i++) { buttons[i].classList.remove('active'); }
+            event.target.classList.add('active');
+            renderPosts(category);
+        }
+
+        function renderPosts(categoryToDisplay) {
+            let container = document.getElementById("posts-container");
+            container.innerHTML = ""; 
+
+            let filteredPosts = allLivePosts.filter(function(post) {
+                if (categoryToDisplay === "All") return true;
+                return post.category === categoryToDisplay;
+            });
+
+            if (filteredPosts.length === 0) {
+                container.innerHTML = "<p style='text-align:center; width:100%; color:#7f8c8d; font-weight:bold;'>No books uploaded yet.</p>";
+                return;
+            }
+
+            filteredPosts.forEach(function(post) {
+                let card = document.createElement("div");
+                card.className = "post-card";
+                
+                let premiumBadge = post.isPremium ? `<span class="badge-premium">👑 Premium</span>` : "";
+                
+                let isDownloaded = safeGetLocal("dl_" + post.id);
+                let downloadBadge = isDownloaded ? `<span class="badge-downloaded">✅ Downloaded</span>` : "";
+
+                let actionHtml = "";
+                if (post.isPremium) {
+                    actionHtml = `<button class="btn-premium" onclick="handlePremiumDownload('${post.id}', '${post.link}')">👑 Unlock Premium Book</button>`;
+                } else {
+                    actionHtml = `<button class="btn-download" onclick="handleNormalDownload('${post.id}', '${post.link}')">📥 Download Free File</button>`;
+                }
+                
+                let adminHtml = isAdminLoggedIn ? `<button style="background:#c0392b; color:white; border:none; padding:10px; width:85%; border-radius:5px; font-weight:bold; cursor:pointer;" onclick="deletePost('${post.id}')">🗑️ Delete Book</button>` : "";
+
+                card.innerHTML = `
+                    <div style="position: relative;">
+                        ${premiumBadge}
+                        <img src="${post.image}" class="book-thumbnail" onclick="toggleOverlay('${post.id}')">
+                        <div class="overlay-actions" id="overlay-${post.id}">
+                            ${actionHtml}
+                            ${adminHtml}
+                            <button style="background:none; color:white; border:none;" onclick="toggleOverlay('${post.id}')">Close ✖</button>
+                        </div>
+                    </div>
+                    <div class="book-info">
+                        <h3>${post.title}</h3>
+                        <div class="book-meta">
+                            <span class="badge-cat">🏷️ ${post.category || 'Others'}</span>
+                            ${downloadBadge}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function toggleOverlay(id) {
+            let overlay = document.getElementById("overlay-" + id);
+            overlay.style.display = (overlay.style.display === "flex") ? "none" : "flex";
+        }
+
+        function handleNormalDownload(bookId, link) {
+            safeSetLocal("dl_" + bookId, "true"); 
+            window.open(link, '_blank');
+            renderPosts(document.querySelector('.filter-btn.active').innerText); 
+        }
+
+        function handlePremiumDownload(bookId, link) {
+            let email = prompt("🔒 This is a Premium Book.\nPlease enter your registered Premium Email to unlock:");
+            if (email) {
+                let safeEmail = email.trim().toLowerCase().replace(/\./g, ',');
+                database.ref("premiumUsers/" + safeEmail).once("value").then(function(snapshot) {
+                    if (snapshot.exists()) {
+                        alert("🎉 Premium Access Granted! Downloading...");
+                        handleNormalDownload(bookId, link); 
+                    } else {
+                        alert("❌ Access Denied!\nYour email is not on the Premium list. Mail rushxd364@gmail.com to get access.");
+                    }
+                });
+            }
+        }
+
+        window.onload = function() {
+            checkAdminSession();
+            fetchLivePosts();
+        };
+    </script>
+</body>
+</html>
